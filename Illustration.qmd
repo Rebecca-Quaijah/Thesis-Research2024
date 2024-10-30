@@ -1,0 +1,189 @@
+---
+title: "Joint Modelling"
+author: Rebecca Quaijah
+date: 23 October 2024
+format:
+  beamer:
+   footer: "Introduction to Joint Modelling"
+   logo: ""
+   theme: ""
+   transition: slide
+   title-slide-attributes: 
+     data-background-image: background.jpeg
+     data-background-repeat: Yes
+---
+
+## Joint Modelling {background-image="background.jpeg"}
+
+-   Studies often collect time-to-event data and repeated measurements, traditionally analyzed separately (e.g., using linear mixed models and Cox models).
+
+-   Joint modelling combines longitudinal and survival data, capturing dependencies between these data types.
+
+-   This approach improves hazard predictions by accounting for measurement error in longitudinal data, linking repeated measures to event risk.
+
+-   Joint models use shared random effects to connect individual variations in longitudinal outcomes to time-to-event risks, creating a unified analysis framework.
+
+## Model Description  {background-image="background.jpeg"}
+
+### Repeated Measurements
+
+The Linear Mixed Effects Model is used for analysing repeated measurement data and it is given by:
+
+\\begin{equation}
+Y\_{ij} = Y_i\^\*(t\_{ij}) + Z\_{ij} = X\_{ij} \\beta + W\_{ij} B_i + Z\_{ij}
+\\end{equation}
+
+### Survival Times
+
+The Cox proportional Hazards model is used for analysing Survival data and it is given by:
+
+\\begin{equation}
+\\lambda\_{i}(t\\mid K\_{i}) = \\lambda\_{0}(t) \\exp\\left(K\_{i} \\alpha\\right)
+\\end{equation}
+
+### Joint Modelling
+
+A joint model for the data and time to event can be defined by the following two equations:
+
+\\begin{equation}
+Y\_{ij} = Y_i\^\*(t\_{ij}) + Z\_{ij} = X\_{ij} \\beta + W\_{ij} B_i + Z\_{ij}
+\\end{equation}
+
+## Model Description Cont'd  {background-image="background.jpeg"}
+
+\\begin{equation}
+\\lambda\_{i}(t \\mid K\_{i}, \\, Y_i\^\*(t)) = \\lambda\_{0}(t) \\exp\\left(K\_{i} \\gamma\_{1} + Y_i\^\*(t) \\gamma\_{2}\\right)
+\\end{equation}
+
+where :
+
+-   \\( Y\_{ij} \\) denote the \\( j \\)-th measurement for the \\( i \\)-th patient.
+
+-   \\( Y_i\^\*(t\_{ij}) \\) denotes the true level at time \\( t \\)
+
+-    \\( Z\_{ij} \\) denotes the measurement error
+
+-    \\( \\lambda\_{i}(t\\mid K\_{i}) \\) is the hazard for the ith patient to experience the event of interest
+
+-   \\(\\alpha \\) denotes the regression parameter
+
+-   \\( \\lambda\_{0}(t) \\) denotes the baseline hazard function
+
+-   \\( \\gamma\_{2}\\) measures the relationship between the unmeasured, error free process
+
+## Data Structure Required for Joint Modelling {background-image="background.jpeg"}
+
+For joint modelling, two data structures are required
+
+-   Longitudinal data
+
+-   Time to event(survival data)
+
+-   Both data is linked by an identifier for each subject (like patient ID) so that both repeated measurements and survival information can be linked together.
+
+## Longitudinal Data Structure {background-image="background.jpeg"}
+
+The data is usually structured with the following columns:
+
+-   **ID**: A unique identifier for each subject.
+
+-   **Time**: The time at which each measurement was taken (could be days, months, etc. from baseline).
+
+-   **Measurement**: The observed value of the longitudinal variable (e.g., eGFR level).
+
+-   **Covariates**: Any other relevant covariates that may change over time (e.g., medication dose) or are constant for each individual (e.g., age, sex).
+
+## Table Illustrating Longitudinal Data {background-image="background.jpeg"}
+
+| ID  | Time | Measurement (e.g., eGFR) | Age | Gender | Medication |
+|-----|------|--------------------------|-----|--------|------------|
+| 1   | 0    | 60                       | 45  | M      | Yes        |
+| 1   | 60   | 68                       | 45  | M      | Yes        |
+| 1   | 12   | 56                       | 45  | M      | Yes        |
+| 2   | 0    | 78                       | 60  | F      | No         |
+| n   | o    | 45                       | 60  | F      | No         |
+| 2   | 8    | 34                       | 60  | F      | No         |
+
+## Survival Data Structure {background-image="background.jpeg"}
+
+The data is usually structured with the following columns:
+
+-   **ID**: A unique identifier for each subject (matching the ID in the longitudinal data).
+
+-   **Survival Time**: The time from the baseline until the event occurs or the subject is censored.
+
+-   **Event Indicator**: A binary variable indicating whether the event occurred (e.g., 1 for event occurrence, 0 for censored).
+
+-   **Baseline Covariates**: Characteristics that are fixed for each individual (e.g., baseline age, gender, smoking status)
+
+## Table Illustrating Survival Data {background-image="background.jpeg"}
+
+| ID  | Survival Time | Event Indicator | Baseline Age | Gender | Smoking Status |
+|-----|---------------|-----------------|--------------|--------|----------------|
+| 1   | 18            | 1               | 45           | M      | Yes            |
+| 2   | 24            | 0               | 60           | F      | No             |
+
+## Sample R codes {background-image="background.jpeg"}
+
+### Longitudinal data 
+
+```{r, echo=TRUE}
+
+library(JM)
+library(lme4)
+library(survival)
+set.seed(123)
+data_long <- data.frame(
+  ID = rep(1:10, each = 5),              
+  Time = rep(seq(0, 4, by = 1), times = 10),  
+  Measurement = rep(50:59, each = 5) + rnorm(50, 0, 3),  
+  Age = rep(sample(45:70, 10, replace = TRUE), each = 5), 
+  Gender = rep(sample(c("M", "F"), 10, replace = TRUE), each = 5) 
+)
+
+head(data_long)
+
+```
+
+## Fitting a **linear mixed-effects model**  {background-image="background.jpeg"}
+
+```{r, echo=TRUE}
+long_model <- lme(Measurement ~ Time + Age + Gender, 
+                  random = ~ 1 | ID,  method = "ML",
+                  data = data_long)
+long_model
+```
+
+## Survival data analysis {background-image="background.jpeg"}
+
+```{r,echo=TRUE}
+data_surv <- data.frame(
+  ID = 1:10,                          
+  SurvivalTime = rexp(10, rate = 0.1),
+  EventIndicator = sample(c(0, 1), 10, replace = TRUE), 
+  BaselineAge = sample(45:70, 10, replace = TRUE),      
+  Gender = sample(c("M", "F"), 10, replace = TRUE)      
+)
+
+head(data_surv)
+
+```
+
+## Fitting a **Cox proportional hazards model**  {background-image="background.jpeg"}
+
+```{r, echo=TRUE}
+surv_model <- coxph(Surv(SurvivalTime, EventIndicator) ~ BaselineAge +
+                      Gender , 
+                    data = data_surv, x = TRUE)
+surv_model
+
+```
+
+## Joint Model {background-image="background.jpeg"}
+
+```{r, echo=TRUE}
+joint_model <- jointModel(long_model, surv_model, timeVar = "Time",
+                          method = "piecewise-PH-aGH")
+summary(joint_model)
+
+```
